@@ -1,10 +1,8 @@
-#+title: gptel-magit: LLM functionality for magit
+#+title: magit-llm-commit: LLM functionality for magit
 
-[[https://stable.melpa.org/#/gptel-magit][file:https://melpa.org/packages/gptel-magit-badge.svg]]
-
-Uses the fantastic [[https://github.com/karthink/gptel][gptel]] to
-extend the equally fantastic [[https://magit.vc/][magit]] with some
-LLM-powered functionality.
+Extend the fantastic [[https://magit.vc/][magit]] with LLM-powered functionality
+using Emacs' built-in URL library to call OpenAI-compatible APIs directly
+— no external LLM packages required.
 
 Functionality is provided for:
 
@@ -13,33 +11,93 @@ Functionality is provided for:
 
 * Installation
 
-Install the package and run =gptel-magit-install= at an appropriate
+Install the package and run =magit-llm-commit-install= at an appropriate
 time, for example:
 
 #+begin_src elisp
-  (use-package gptel-magit
-    :ensure t
-    :hook (magit-mode . gptel-magit-install))
+  (use-package magit-llm-commit
+    :hook (magit-mode . magit-llm-commit-install))
+#+end_src
+
+* Configuration
+
+** API Key (required)
+
+You must configure an API key before using magit-llm-commit.  You can set
+it directly as a string, or use a function for better security:
+
+#+begin_src elisp
+  ;; Option 1: Set directly (not recommended for public configs)
+  (setq magit-llm-commit-api-key "sk-...")
+
+  ;; Option 2: Read from environment variable
+  (setq magit-llm-commit-api-key (lambda () (getenv "OPENAI_API_KEY")))
+
+  ;; Option 3: Read from auth-source
+  (setq magit-llm-commit-api-key
+        (lambda ()
+          (auth-source-pick-first-password :host "api.openai.com")))
+#+end_src
+
+** API Endpoint
+
+The default endpoint is OpenAI's.  To use other OpenAI-compatible
+services:
+
+#+begin_src elisp
+  ;; DeepSeek
+  (setq magit-llm-commit-api-url "https://api.deepseek.com/v1/chat/completions")
+
+  ;; OpenRouter
+  (setq magit-llm-commit-api-url "https://openrouter.ai/api/v1/chat/completions")
+
+  ;; Ollama (local)
+  (setq magit-llm-commit-api-url "http://localhost:11434/v1/chat/completions")
+#+end_src
+
+** Model
+
+#+begin_src elisp
+  (setq magit-llm-commit-model "gpt-4.1-mini")    ; default
+  (setq magit-llm-commit-model "deepseek-chat")    ; DeepSeek
+  (setq magit-llm-commit-model "llama3")           ; Ollama
 #+end_src
 
 * Usage
 
 ** Commit messages
 
-You can generate a commit message in two ways:
+You can generate a commit message in the following ways:
 
 1. In the magit transient commit buffer, you can press =g= to create a
    commit with a pre-generated message.
-2. In an already started git-commit buffer, you can press =M-g= to
+2. In an already started git-commit buffer, you can press =C-c g= to
    generate a message.
+3. You can also bind the command to a custom key in =git-commit-mode-map=,
+   for example:
+
+#+begin_src elisp
+  (define-key git-commit-mode-map (kbd "C-c m") 'magit-llm-commit-generate-message)
+#+end_src
+
+   Then press =C-c m= in the commit buffer to generate a message.
 
 ** Diff explanation
 
 With the cursor placed on a magit diff section, you can request an
 explanation by pressing =d= (to invoke the diff action), and then =x=.
 
+* Acknowledgements
+
+This project is a fork of [[https://github.com/ragnard/gptel-magit][gptel-magit]] by Ragnar Dahlén. It removes
+the =gptel= dependency in favor of using Emacs' built-in =url= library to
+call OpenAI-compatible APIs directly, making the package self-contained
+with only =magit= as an external dependency.
+
+Thanks to the original author for the excellent design and prompts that
+this project builds upon.
 
 * Customisation
 
-Prompts, and some other options can be customised, see
-`customize-group magit-gptel`.
+Prompts, API settings, and other options can be customised, see
+=customize-group magit-llm-commit=.
