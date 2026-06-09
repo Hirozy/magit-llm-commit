@@ -275,7 +275,10 @@ Uses ARGS from transient mode."
         (insert text)
         (setq fill-column 72)
         (fill-region (point-min) (point-max))
-        (markdown-view-mode)
+        (if (fboundp 'markdown-view-mode)
+            (markdown-view-mode)
+          (text-mode)
+          (message "magit-llm-commit: Install markdown-mode for better formatting"))
         (goto-char (point-min)))
       (pop-to-buffer buffer))))
 
