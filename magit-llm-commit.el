@@ -125,6 +125,40 @@ Lower values produce more deterministic outputs."
   :type 'number
   :group 'magit-llm-commit)
 
+(defcustom magit-llm-commit-timeout 60
+  "Timeout in seconds for API requests.
+If the API does not respond within this time, the request is cancelled."
+  :type 'integer
+  :group 'magit-llm-commit)
+
+(defvar magit-llm-commit--spinner-timer nil
+  "Timer for the progress spinner.")
+
+(defvar magit-llm-commit--spinner-frame 0
+  "Current frame index for the spinner animation.")
+
+(defvar magit-llm-commit--spinner-frames ["⠋" "⠙" "⠹" "⠸" "⠼" "⠴" "⠦" "⠧" "⠇" "⠏"]
+  "Spinner animation frames.")
+
+(defun magit-llm-commit--start-spinner (message-text)
+  "Start a progress spinner with MESSAGE-TEXT."
+  (setq magit-llm-commit--spinner-frame 0)
+  (setq magit-llm-commit--spinner-timer
+        (run-with-timer 0 0.1
+                        (lambda ()
+                          (message "%s %s" message-text
+                                   (aref magit-llm-commit--spinner-frames
+                                         magit-llm-commit--spinner-frame))
+                          (setq magit-llm-commit--spinner-frame
+                                (% (1+ magit-llm-commit--spinner-frame)
+                                   (length magit-llm-commit--spinner-frames)))))))
+
+(defun magit-llm-commit--stop-spinner ()
+  "Stop the progress spinner."
+  (when magit-llm-commit--spinner-timer
+    (cancel-timer magit-llm-commit--spinner-timer)
+    (setq magit-llm-commit--spinner-timer nil)))
+
 (defun magit-llm-commit--resolve-api-key ()
   "Resolve `magit-llm-commit-api-key' to a string value.
 If it is a function, call it; if it is a string, return it directly.
@@ -195,40 +229,44 @@ error with a message displayed in the echo area."
                                  (content . ,(cdr (assoc 'content m)))))
                              messages)))))))
          (url-mime-accept-string "application/json"))
-    (url-retrieve
-     magit-llm-commit-api-url
-     (lambda (status)
-       (let ((response-buffer (current-buffer)))
-         (unwind-protect
-             (if (plist-get status :error)
-                 (message "magit-llm-commit: HTTP error: %s"
-                          (plist-get status :error))
-               (goto-char (point-min))
-               (if (not (re-search-forward "\r?\n\r?\n" nil t))
-                   (message "magit-llm-commit: No response body found")
-                 (condition-case err
-                     (let* ((json-data (json-parse-buffer :object-type 'alist))
-                            (error-obj (alist-get 'error json-data)))
-                       (if error-obj
-                           (message "magit-llm-commit: API error: %s"
-                                    (alist-get 'message error-obj))
-                         (let* ((choices (alist-get 'choices json-data))
-                                (first-choice (and choices (length> choices 0)
-                                                   (aref choices 0)))
-                                (message-obj (and first-choice
-                                                  (alist-get 'message first-choice)))
-                                (content (and message-obj
-                                              (alist-get 'content message-obj))))
-                           (if content
-                               (funcall callback content)
-                             (message "magit-llm-commit: Unexpected response format")))))
-                   (json-parse-error
-                    (message "magit-llm-commit: Invalid JSON response from server"))
-                   (error
-                    (message "magit-llm-commit: Error processing response: %s"
-                             (error-message-string err))))))
-           (kill-buffer response-buffer))))
-     nil t)))
+    (magit-llm-commit--start-spinner "magit-llm-commit: Requesting...")
+    (condition-case err
+        (let ((response-buffer (url-retrieve-synchronously
+                                magit-llm-commit-api-url
+                                nil nil magit-llm-commit-timeout)))
+          (magit-llm-commit--stop-spinner)
+          (when response-buffer
+            (unwind-protect
+                (with-current-buffer response-buffer
+                  (goto-char (point-min))
+                  (if (not (re-search-forward "\r?\n\r?\n" nil t))
+                      (message "magit-llm-commit: No response body found")
+                    (condition-case err
+                        (let* ((json-data (json-parse-buffer :object-type 'alist))
+                               (error-obj (alist-get 'error json-data)))
+                          (if error-obj
+                              (message "magit-llm-commit: API error: %s"
+                                       (alist-get 'message error-obj))
+                            (let* ((choices (alist-get 'choices json-data))
+                                   (first-choice (and choices (length> choices 0)
+                                                      (aref choices 0)))
+                                   (message-obj (and first-choice
+                                                     (alist-get 'message first-choice)))
+                                   (content (and message-obj
+                                                 (alist-get 'content message-obj))))
+                              (if content
+                                  (funcall callback content)
+                                (message "magit-llm-commit: Unexpected response format")))))
+                      (json-parse-error
+                       (message "magit-llm-commit: Invalid JSON response from server"))
+                      (error
+                       (message "magit-llm-commit: Error processing response: %s"
+                                (error-message-string err))))))
+              (kill-buffer response-buffer))))
+      (error
+       (magit-llm-commit--stop-spinner)
+       (message "magit-llm-commit: Request failed: %s"
+                (error-message-string err))))))
 
 (defun magit-llm-commit--generate (callback)
   "Generate a commit message for current magit repo.
@@ -253,8 +291,8 @@ Invokes CALLBACK with the generated message when done."
                                 (with-current-buffer (magit-commit-message-buffer)
                                   (save-excursion
                                     (goto-char (point-min))
-                                    (insert message)))))
-  (message "magit-llm-commit: Generating commit message..."))
+                                    (insert message)))
+                                (message "magit-llm-commit: Commit message generated"))))
 
 (defun magit-llm-commit-commit-generate (&optional args)
   "Create a new commit with a generated commit message.
@@ -262,8 +300,8 @@ Uses ARGS from transient mode."
   (interactive (list (magit-commit-arguments)))
   (magit-llm-commit--generate
    (lambda (message)
-     (magit-commit-create (append args `("--message" ,message "--edit")))))
-  (message "magit-llm-commit: Generating commit..."))
+     (magit-commit-create (append args `("--message" ,message "--edit")))
+     (message "magit-llm-commit: Commit generated"))))
 
 (defun magit-llm-commit--show-diff-explain (text)
   "Popup a buffer with diff explanation TEXT."
@@ -289,8 +327,8 @@ Uses ARGS from transient mode."
      ((role . "user") (content . ,(format "Explain the following diff:\n\n%s" diff))))
    (lambda (response)
      (when response
-       (magit-llm-commit--show-diff-explain response))))
-  (message "magit-llm-commit: Explaining diff..."))
+       (magit-llm-commit--show-diff-explain response)
+       (message "magit-llm-commit: Diff explained")))))
 
 (defun magit-llm-commit-diff-explain ()
   "Ask for an explanation of diff at current section."

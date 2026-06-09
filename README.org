@@ -63,6 +63,15 @@ services:
   (setq magit-llm-commit-model "llama3")           ; Ollama
 #+end_src
 
+** Request Timeout
+
+API requests will time out after =magit-llm-commit-timeout= seconds
+(default: 60). A progress spinner is displayed while waiting:
+
+#+begin_src elisp
+  (setq magit-llm-commit-timeout 30)  ; shorter timeout
+#+end_src
+
 * Usage
 
 ** Commit messages

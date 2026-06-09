@@ -414,6 +414,46 @@
         (should (string-match-p "Test" (buffer-string)))))))
 
 ;; ===========================================================================
+;; Timeout and spinner
+;; ===========================================================================
+
+(ert-deftest magit-llm-commit-test/timeout-custom-exists ()
+  "Timeout custom variable should be defined."
+  (should (boundp 'magit-llm-commit-timeout))
+  (should (integerp magit-llm-commit-timeout))
+  (should (> magit-llm-commit-timeout 0)))
+
+(ert-deftest magit-llm-commit-test/timeout-default-value ()
+  "Timeout should have a reasonable default value."
+  (should (eq (default-value 'magit-llm-commit-timeout) 60)))
+
+(ert-deftest magit-llm-commit-test/spinner-frames-exist ()
+  "Spinner frames should be defined and non-empty."
+  (should (boundp 'magit-llm-commit--spinner-frames))
+  (should (vectorp magit-llm-commit--spinner-frames))
+  (should (> (length magit-llm-commit--spinner-frames) 0)))
+
+(ert-deftest magit-llm-commit-test/start-spinner ()
+  "Starting spinner should create a timer."
+  (magit-llm-commit--start-spinner "Testing")
+  (should (timerp magit-llm-commit--spinner-timer))
+  (magit-llm-commit--stop-spinner))
+
+(ert-deftest magit-llm-commit-test/stop-spinner ()
+  "Stopping spinner should cancel the timer."
+  (magit-llm-commit--start-spinner "Testing")
+  (magit-llm-commit--stop-spinner)
+  (should (null magit-llm-commit--spinner-timer)))
+
+(ert-deftest magit-llm-commit-test/spinner-advances ()
+  "Spinner frame should advance when timer fires."
+  (let ((initial-frame magit-llm-commit--spinner-frame))
+    (magit-llm-commit--start-spinner "Testing")
+    (sleep-for 0.2)  ; Wait for timer to fire
+    (should (not (eq magit-llm-commit--spinner-frame initial-frame)))
+    (magit-llm-commit--stop-spinner)))
+
+;; ===========================================================================
 ;; Feature provide
 ;; ===========================================================================
 
