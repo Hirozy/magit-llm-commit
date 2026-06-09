@@ -377,6 +377,43 @@
   (should (commandp 'magit-llm-commit-diff-explain)))
 
 ;; ===========================================================================
+;; Diff explain with markdown-mode fallback
+;; ===========================================================================
+
+(ert-deftest magit-llm-commit-test/show-diff-explain-without-markdown ()
+  "Should fall back to text-mode when markdown-view-mode is not available."
+  (let ((test-text "# Test\n\nThis is a test.")
+        (markdown-available (fboundp 'markdown-view-mode)))
+    ;; Temporarily remove markdown-view-mode if it exists
+    (when markdown-available
+      (fmakunbound 'markdown-view-mode))
+    (unwind-protect
+        (progn
+          (magit-llm-commit--show-diff-explain test-text)
+          (let ((buf (get-buffer "*magit-llm-commit diff-explain*")))
+            (should buf)
+            (with-current-buffer buf
+              ;; Should be in text-mode
+              (should (eq major-mode 'text-mode))
+              ;; Content should be present
+              (should (string-match-p "Test" (buffer-string))))))
+      ;; Restore markdown-view-mode if it was available
+      (when markdown-available
+        (require 'markdown-mode nil t)))))
+
+(ert-deftest magit-llm-commit-test/show-diff-explain-with-markdown ()
+  "Should use markdown-view-mode when available."
+  (let ((test-text "# Test\n\nThis is a test."))
+    (magit-llm-commit--show-diff-explain test-text)
+    (let ((buf (get-buffer "*magit-llm-commit diff-explain*")))
+      (should buf)
+      (with-current-buffer buf
+        ;; Should be in markdown-view-mode
+        (should (eq major-mode 'markdown-view-mode))
+        ;; Content should be present
+        (should (string-match-p "Test" (buffer-string)))))))
+
+;; ===========================================================================
 ;; Feature provide
 ;; ===========================================================================
 

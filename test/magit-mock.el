@@ -39,5 +39,13 @@
 ;; Provide magit so (require 'magit) succeeds
 (provide 'magit)
 
+(defun markdown-view-mode ()
+  "Mock: set major-mode to markdown-view-mode."
+  (interactive)
+  (setq major-mode 'markdown-view-mode
+        mode-name "Markdown-View"))
+
+(provide 'markdown-mode)
+
 (provide 'magit-mock)
 ;;; magit-mock.el ends here
