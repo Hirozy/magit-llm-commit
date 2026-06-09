@@ -5,6 +5,7 @@
 
 ;; Author: Ragnar Dahlén <r.dahlen@gmail.com>
 ;; Maintainer: Hirozy <git@hirozy.com>
+;; Assisted-by: Claude:qwen3.7-max
 ;; Version: 2.0
 ;; Package-Requires: ((emacs "28.1") (magit "4.0"))
 ;; Keywords: vc, convenience
