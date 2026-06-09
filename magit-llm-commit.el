@@ -149,7 +149,7 @@ Signals an error if no key is configured."
 (defun magit-llm-commit--clean-response (response)
   "Clean LLM response by stripping markdown code fences and whitespace."
   (let ((cleaned (replace-regexp-in-string
-                  "^```\\(?:commit\\)?\\s*\n?" "" response)))
+                  "^```\\(commit\\)?[[:space:]]*\n?" "" response)))
     (setq cleaned (replace-regexp-in-string "\n?```$" "" cleaned))
     (string-trim cleaned)))
 
@@ -167,7 +167,7 @@ This ensures the result is pure ASCII, which is required by
          (format "\\u%04X\\u%04X"
                  (+ #xD800 (/ (- cp #x10000) #x400))
                  (+ #xDC00 (% (- cp #x10000) #x400))))))
-   string nil t))
+   string t t))
 
 (defun magit-llm-commit--request (messages callback)
   "Send MESSAGES to the LLM API and call CALLBACK with the response.
