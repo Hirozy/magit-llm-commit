@@ -176,7 +176,7 @@ Signals an error if no key is configured."
   (with-temp-buffer
     (insert message)
     (text-mode)
-    (setq fill-column git-commit-summary-max-length)
+    (setq fill-column (or (bound-and-true-p git-commit-summary-max-length) 50))
     (fill-region (point-min) (point-max))
     (buffer-string)))
 
@@ -235,7 +235,9 @@ error with a message displayed in the echo area."
                                 magit-llm-commit-api-url
                                 nil nil magit-llm-commit-timeout)))
           (magit-llm-commit--stop-spinner)
-          (when response-buffer
+          (if (not response-buffer)
+              (message "magit-llm-commit: Request timed out after %d seconds"
+                       magit-llm-commit-timeout)
             (unwind-protect
                 (with-current-buffer response-buffer
                   (goto-char (point-min))
@@ -339,14 +341,20 @@ Uses ARGS from transient mode."
               (content (buffer-substring start end)))
     (magit-llm-commit--do-diff-request content)))
 
+(defvar magit-llm-commit--installed nil
+  "Non-nil if `magit-llm-commit-install' has already been called.")
+
 ;;;###autoload
 (defun magit-llm-commit-install ()
-  "Install magit-llm-commit functionality."
-  (define-key git-commit-mode-map (kbd "C-c g") 'magit-llm-commit-generate-message)
-  (transient-append-suffix 'magit-commit #'magit-commit-create
-    '("g" "Generate commit" magit-llm-commit-commit-generate))
-  (transient-append-suffix 'magit-diff #'magit-stash-show
-    '("x" "Explain" magit-llm-commit-diff-explain)))
+  "Install magit-llm-commit functionality.
+Safe to call multiple times; only installs once."
+  (unless magit-llm-commit--installed
+    (define-key git-commit-mode-map (kbd "C-c g") 'magit-llm-commit-generate-message)
+    (transient-append-suffix 'magit-commit #'magit-commit-create
+      '("g" "Generate commit" magit-llm-commit-commit-generate))
+    (transient-append-suffix 'magit-diff #'magit-stash-show
+      '("x" "Explain" magit-llm-commit-diff-explain))
+    (setq magit-llm-commit--installed t)))
 
 (provide 'magit-llm-commit)
 ;;; magit-llm-commit.el ends here
